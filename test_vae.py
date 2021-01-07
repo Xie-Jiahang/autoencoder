@@ -20,11 +20,11 @@ capacity = 64
 learning_rate = 1e-3
 variational_beta = 1
 use_gpu = True
-dataroot = "../image_processing/data_generation/fig"
+dataroot = "../fig"
 
-img_transform = transforms.Compose([
-    transforms.ToTensor()
-])
+# img_transform = transforms.Compose([
+#     transforms.ToTensor()
+# ])
 
 train_dataset = MNIST(root='./data/MNIST', download=False,
                       train=True, transform=img_transform)
@@ -35,7 +35,7 @@ train_dataset = MNIST(root='./data/MNIST', download=False,
 #                                transforms.CenterCrop(capacity),
 #                                transforms.ToTensor(),
 #                                transforms.Normalize(
-#                                    (0.5), (0.5)),
+#                                    (0.5,0.5,0.5), (0.5,0.5,0.5)),
 #                            ]))
 
 train_dataloader = DataLoader(
