@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import urllib
 from torchvision.datasets import MNIST
+import torchvision.datasets as dset
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
 import os
-%matplotlib inline
+# %matplotlib inline
 
 
 latent_dims = 2
@@ -19,7 +20,7 @@ capacity = 64
 learning_rate = 1e-3
 variational_beta = 1
 use_gpu = True
-
+dataroot = "../image_processing/data_generation/fig"
 
 img_transform = transforms.Compose([
     transforms.ToTensor()
@@ -27,6 +28,16 @@ img_transform = transforms.Compose([
 
 train_dataset = MNIST(root='./data/MNIST', download=False,
                       train=True, transform=img_transform)
+
+# train_dataset = dset.ImageFolder(root=dataroot,
+#                            transform=transforms.Compose([
+#                                transforms.Resize(capacity),
+#                                transforms.CenterCrop(capacity),
+#                                transforms.ToTensor(),
+#                                transforms.Normalize(
+#                                    (0.5), (0.5)),
+#                            ]))
+
 train_dataloader = DataLoader(
     train_dataset, batch_size=batch_size, shuffle=True)
 
@@ -39,10 +50,10 @@ class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
         c = capacity
-        self.conv1 = nn.Con2d(in_channels=1, out_channels=c,
-                              kernel_size=4, stride=2, padding=1)
-        self.conv2 = nn.Con2d(in_channels=c, out_channels=c*2,
-                              kernel_size=4, stride=2, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=c,
+                               kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=c, out_channels=c*2,
+                               kernel_size=4, stride=2, padding=1)
         self.fc_mu = nn.Linear(in_features=c*2*7*7, out_features=latent_dims)
         self.fc_logvar = nn.Linear(
             in_features=c*2*7*7, out_features=latent_dims)
@@ -66,9 +77,9 @@ class Decoder(nn.Module):
         self.conv1 = nn.ConvTranspose2d(
             in_channels=c, out_channels=1, kernel_size=4, stride=2, padding=1)
 
-    def forwar(self, x):
+    def forward(self, x):
         x = self.fc(x)
-        x = x.view(x.size(0), c*2, 7, 7)
+        x = x.view(x.size(0), capacity*2, 7, 7)
         x = F.relu(self.conv2(x))
         x = torch.sigmoid(self.conv1(x))
         return x
@@ -87,7 +98,7 @@ class VariationalAutoencoder(nn.Module):
             eps = torch.empty_like(std).normal_()
             return eps.mul(std).add_(mu)
         else:
-            return mu  # ???
+            return mu
 
     def forward(self, x):
         latent_mu, latent_logvar = self.encoder(x)
@@ -101,7 +112,7 @@ def vae_loss(recon_x, x, mu, logvar):
     recon_loss = F.binary_cross_entropy(
         recon_x.view(-1, 784), x.view(-1, 784), reduction='sum')
 
-    kldivergence = -0.5*torch.sum(1+logvar-mu.pow(2)-logvar.exp())  # ???
+    kldivergence = -0.5*torch.sum(1+logvar-mu.pow(2)-logvar.exp())
     return recon_loss+variational_beta*kldivergence
 
 
@@ -110,12 +121,12 @@ device = torch.device(
     "cuda:0" if use_gpu and torch.cuda.is_available() else "cpu")
 vae = vae.to(device)
 
-num_params = sum(p.numel() for p in vae.parameter() if p.requires_grad)
+num_params = sum(p.numel() for p in vae.parameters() if p.requires_grad)
 print('Number of parameters: %d' % num_params)
 
 optimizer = torch.optim.Adam(
     params=vae.parameters(), lr=learning_rate, weight_decay=1e-5)
-vae.training()
+vae.train()
 train_loss_avg = []
 
 print('Training ...')
@@ -141,7 +152,6 @@ for epoch in range(num_epochs):
     print('Epoch [%d / %d] average reconstruction error: %f' %
           (epoch+1, num_epochs, train_loss_avg[-1]))
 
-import matplotlib.pyplot as plt
 plt.ion()
 fig = plt.figure()
 plt.plot(train_loss_avg)
@@ -175,14 +185,18 @@ print('average reconstruction error: %f' % (test_loss_avg))
 plt.ion()
 
 vae.eval()
+
+
 def to_img(x):
     x = x.clamp(0, 1)
     return x
+
 
 def show_image(img):
     img = to_img(img)
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
 
 def visualise_output(images, model):
     with torch.no_grad():
@@ -196,7 +210,7 @@ def visualise_output(images, model):
 
 
 images, labels = iter(test_dataloader).next()
-# images,labels=next(iter(test_dataloader))
+# images, labels = next(iter(test_dataloader))
 
 print('Original images')
 show_image(torchvision.utils.make_grid(images[1:50], 10, 5))
@@ -206,6 +220,7 @@ print('VAE reconstruction:')
 visualise_output(images, vae)
 
 vae.eval()
+
 
 def interpolation(lambda1, model, img1, img2):
     with torch.no_grad():
@@ -222,10 +237,10 @@ def interpolation(lambda1, model, img1, img2):
         return inter_image
 
 
-digits = [[] for _ in range(10)]  # classify digits into 0,1,...,9 ???
+digits = [[] for _ in range(10)]
 for img_batch, label_batch in test_dataloader:
     for i in range(img_batch.size(0)):
-        digitd[label_batch[i]].append(img_batch[i:i+1])
+        digits[label_batch[i]].append(img_batch[i:i+1])
     if sum(len(d) for d in digits) >= 1000:
         break
 
@@ -236,7 +251,7 @@ axs = axs.ravel()
 
 for ind, l in enumerate(lambda_range):
     inter_image = interpolation(float(l), vae, digits[7][0], digits[1][0])
-    interpolation = to_img(inter_image)
+    inter_image = to_img(inter_image)
     image = inter_image.numpy()
 
     axs[ind].imshow(image[0, 0, :, :], cmap='gray')
