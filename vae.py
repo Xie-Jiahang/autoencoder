@@ -42,8 +42,8 @@ class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
         c = capacity
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=c, kernel_size=4, stride=2, padding=1) # out: c x 14 x 14
-        self.conv2 = nn.Conv2d(in_channels=c, out_channels=c*2, kernel_size=4, stride=2, padding=1) # out: c x 7 x 7
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=c, kernel_size=4, stride=2, padding=1) # out: c x 14 x 14 (28/2)
+        self.conv2 = nn.Conv2d(in_channels=c, out_channels=c*2, kernel_size=4, stride=2, padding=1) # out: c x 7 x 7 (14/2)
         self.fc_mu = nn.Linear(in_features=c*2*7*7, out_features=latent_dims)
         self.fc_logvar = nn.Linear(in_features=c*2*7*7, out_features=latent_dims)
             
@@ -152,7 +152,7 @@ for epoch in range(num_epochs):
     train_loss_avg[-1] /= num_batches
     print('Epoch [%d / %d] average reconstruction error: %f' % (epoch+1, num_epochs, train_loss_avg[-1]))
 
-    import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 plt.ion()
 
 fig = plt.figure()
